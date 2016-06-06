@@ -69,6 +69,7 @@ class nmap2db_cli(cmd.Cmd):
         self.db = nmap2db_db(self.dsn,self.logs,'nmap2db_cli')
         self.output_format = 'table'
 
+        self.scansource = 'default' # TODO
 
     # ############################################
     # Method do_show_network_definitions
@@ -641,6 +642,91 @@ class nmap2db_cli(cmd.Cmd):
             except Exception as e:
                 print "\n[ERROR]: Could not register this network\n",e
     
+        #
+        # Command with the wrong number of parameters
+        #
+
+        else:
+            print "\n[ERROR] - Wrong number of parameters used.\n          Type help or \? to list commands\n"
+
+
+    # ############################################
+    # Method do_register_scansource
+    # ############################################
+
+    def do_register_scansource(self,args):
+        """
+        DESCRIPTION:
+        This command registers a new scansource.
+
+        COMMAND:
+        register_scansource [Scansource name][scansource IP][description]
+        """
+
+        #
+        # If a parameter has more than one token, it has to be
+        # defined between doble quotes
+        #
+
+        try:
+            arg_list = shlex.split(args)
+
+        except ValueError as e:
+            print "\n[ERROR]: ",e,"\n"
+            return False
+
+        #
+        # Command without parameters
+        #
+
+        if len(arg_list) == 0:
+
+            ack = ""
+
+            print "--------------------------------------------------------"
+            scansource_name = raw_input("# Scansource name []: ")
+            scansource_ip = raw_input("# Scansource IP []: ")
+            scansource_desc = raw_input("# Scansource description []: ")
+            print
+
+            while ack != "yes" and ack != "no":
+                ack = raw_input("# Are all values correct (yes/no): ")
+
+            print "--------------------------------------------------------"
+
+            if ack.lower() == "yes":
+                try:
+                    self.db.register_scansource(scansource_ip.lower().strip(),
+                                                scansource_name.strip(),
+                                                scansource_desc.strip())
+                    print "\n[Done]\n"
+
+                except Exception as e:
+                    print "\n[ERROR]: Could not register this scansource\n",e
+
+            elif ack.lower() == "no":
+                print "\n[Aborted]\n"
+
+        #
+        # Command with the 2 parameters that can be defined.
+        # Hostname, domain, status and remarks
+        #
+
+        elif len(arg_list) == 3:
+
+            scansource_name = arg_list[0]
+            scansource_ip = arg_list[1]
+            scansource_desc = arg_list[2]
+
+            try:
+                self.db.register_scansource(scansource_ip.lower().strip(),
+                                            scansource_name.strip(),
+                                            scansource_desc.strip())
+                print "\n[Done]\n"
+
+            except Exception as e:
+                print "\n[ERROR]: Could not register this scansource\n",e
+
         #
         # Command with the wrong number of parameters
         #

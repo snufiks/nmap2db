@@ -434,6 +434,7 @@ class nmap2db_db():
                                      os_sql +
                                      'ORDER BY "IPaddress"')
 
+                    self.logs.logger.error(self.cur)
                     self.conn.commit()
 
                     colnames = [desc[0] for desc in self.cur.description]
@@ -489,6 +490,31 @@ class nmap2db_db():
                     self.cur.execute('SELECT register_network(%s,%s)',(network_cidr,remarks))
                     self.conn.commit()                        
                 
+                except psycopg2.Error as  e:
+                    raise e
+
+            self.pg_close()
+
+        except psycopg2.Error as e:
+            raise e
+
+
+    # ############################################
+    # Method register_scansource
+    # ############################################
+
+    def register_scansource(self, scansource_ip, scansource_name, description):
+        """A method to register a scansource"""
+
+        try:
+            self.pg_connect()
+
+            if self.cur:
+                try:
+                    self.cur.execute('SELECT register_scansource(%s, %s, %s)',
+                                     (scansource_ip, scansource_name, description))
+                    self.conn.commit()
+
                 except psycopg2.Error as  e:
                     raise e
 
@@ -603,7 +629,7 @@ class nmap2db_db():
     # Method 
     # ############################################
 
-    def save_scan_report(self,scan_job_id,xml_report):
+    def save_scan_report(self,scan_job_id,xml_report, scansource):
         """A method to save a scan report"""
 
         try:
@@ -611,7 +637,7 @@ class nmap2db_db():
 
             if self.cur:
                 try:
-                    self.cur.execute('SELECT save_scan_report(%s,%s)',(scan_job_id,xml_report))
+                    self.cur.execute('SELECT save_scan_report(%s,%s,%s)',(scan_job_id,xml_report,scansource))
                     self.conn.commit()                        
                 
                     return True
