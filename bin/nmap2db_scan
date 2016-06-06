@@ -70,6 +70,7 @@ def main():
     logs.logger.debug('pg_connect retry interval: %s',conf.pg_connect_retry_interval)
 
     db = nmap2db_db(dsn,logs,'nmap2db_dump')
+    scansource = 'default' # TODO
     
     #
     # Main loop waiting for notifications
@@ -81,21 +82,19 @@ def main():
             scan_job_id = db.get_next_scan_job()
 
             if scan_job_id != None:
-                
+
                 scan_job_args = db.get_scan_job_args(scan_job_id)
                 scan_job_network = db.get_scan_job_network(scan_job_id)
 
                 for host in db.expand_network(scan_job_network):
-
                     nmap_command = 'nmap ' + scan_job_args + ' ' + host[0]
                     
                     proc = subprocess.Popen(nmap_command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                     proc.wait
                     
                     output, error = proc.communicate()
-
                     if proc.returncode == 0:
-                        db.save_scan_report(scan_job_id,output)
+                        db.save_scan_report(scan_job_id,output, scansource)
                         logs.logger.debug('Scan jobID: %s for host: %s has saved the XML report in the database',scan_job_id,host[0])
                     else:
                         logs.logger.error('Scan JobID: %s exit with an error: %s',scan_job_id,error)
