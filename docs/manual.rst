@@ -155,6 +155,14 @@ installed NNAMP2DB via ``source``, ``rpm`` or ``deb`` packages.
 
    psql -h <dbhost.domain> -f /usr/share/nmap2db/nmap2db.sql
 
+Set password og generate certificates.
+
+::
+
+   alter role nmap2db_role_rw with password <PASSWORD>;
+   alter role nmap2db_role_ro with password <PASSWORD>;
+
+
 There is another file in this directory named
 ``nmap2pg_table_partition.sql``. This file can be used to install and
 configure partitioning of the main tables used by NMAP2DB. We
