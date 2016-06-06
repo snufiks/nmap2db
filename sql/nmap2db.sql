@@ -66,11 +66,13 @@ BEGIN;
 
 CREATE TABLE hostaddress (
   hostaddr INET NOT NULL ,
+  --  scansource TEXT NOT NULL,
   registered TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   last_scanned  TIMESTAMP WITH TIME ZONE,
   total_scans BIGINT NOT NULL DEFAULT 0
 );
 
+-- ALTER TABLE hostaddress ADD PRIMARY KEY (hostaddr, scansource);
 ALTER TABLE hostaddress ADD PRIMARY KEY (hostaddr);
 ALTER TABLE hostaddress OWNER TO nmap2db_role_rw;
 
@@ -129,7 +131,8 @@ CREATE TABLE host_info(
   osmatch_name TEXT [],
   osmatch_accuracy INTEGER [],
   state TEXT NOT NULL,
-  state_reason TEXT
+  state_reason TEXT,
+  scansource TEXT
 );
 
 ALTER TABLE host_info ADD PRIMARY KEY (report_id,hostaddr);
@@ -161,6 +164,7 @@ CREATE INDEX host_info_state_idx ON host_info(state);
 
 CREATE TABLE internal_error_log(
   id BIGSERIAL NOT NULL,
+  scansource TEXT NOT NULL,
   registered TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   table_name TEXT NOT NULL,
   operation TEXT NOT NULL,
@@ -371,6 +375,7 @@ CREATE INDEX scan_job_error_log_registered_idx ON scan_job_error_log(registered)
 
 CREATE TABLE scan_report(
   report_id TEXT NOT NULL,
+  scansource TEXT NOT NULL,
   registered TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   scan_jobid BIGINT,
   started TIMESTAMP WITH TIME ZONE,
@@ -454,6 +459,34 @@ CREATE INDEX service_info_port_id_idx ON service_info(port_id);
 CREATE INDEX service_info_port_state_idx ON service_info(port_state);
 CREATE INDEX service_info_service_idx ON service_info(service);
 
+-- ------------------------------------------------------------
+-- Table: scan_source
+--
+-- @Description: Definition of scan sources
+--
+-- Attributes:
+
+-- @registered: Timestamp when the service information was registered. 
+
+-- @scansource_name:  Unique name of scansource.
+-- @description: Description of scansource.
+-- @scansource_ip: IP of scansource.
+--
+-- ------------------------------------------------------------
+
+\echo '\n# [Creating table:scan source]\n'
+
+CREATE TABLE scan_source(
+  scansource_name TEXT NOT NULL,
+  --  registered TIMESTAMP WITH TIME ZONE  NOT NULL DEFAULT now(),
+  description text,
+  scansource_ip INET UNIQUE
+);
+
+ALTER TABLE scan_source ADD PRIMARY KEY (scansource_name, scansource_ip);
+ALTER TABLE scan_source OWNER TO nmap2db_role_rw;
+
+-- CREATE UNIQUE INDEX scan_job_id_idx ON scan_job(id);
 
 -- ------------------------------------------------------------
 -- Constraints
@@ -482,6 +515,18 @@ ALTER TABLE service_info ADD CONSTRAINT hostaddr
 
 ALTER TABLE scan_report ADD CONSTRAINT scan_jobid
    FOREIGN KEY (scan_jobid) REFERENCES scan_job (id) MATCH FULL ON DELETE CASCADE;
+
+-- ALTER TABLE hostaddress ADD CONSTRAINT hostaddress_fk
+--      FOREIGN KEY (scansource) REFERENCES scan_sources (scansource_name) MATCH FULL ON DELETE CASCADE;
+
+ALTER TABLE internal_error_log ADD CONSTRAINT ierl_fk
+      FOREIGN KEY (scansource) REFERENCES scan_source (scansource_name) MATCH FULL ON DELETE CASCADE;
+
+ALTER TABLE scan_report ADD CONSTRAINT scan_report_fk
+      FOREIGN KEY (scansource) REFERENCES scan_source (scansource_name) MATCH FULL ON DELETE CASCADE;
+
+ALTER TABLE host_info ADD CONSTRAINT hi_fk2
+   FOREIGN KEY (scansource) REFERENCES scan_source (scansource_name) MATCH FULL ON DELETE CASCADE;
 
 -- ------------------------------------------------------------
 -- Function: disable_delete()
@@ -1256,7 +1301,7 @@ ALTER FUNCTION get_active_scan_job_networks() OWNER TO nmap2db_role_rw;
 
 \echo '\n# [Creating function save_scan_report]\n'
 
-CREATE OR REPLACE FUNCTION save_scan_report(scan_jobid BIGINT, xmlreport XML) RETURNS VOID
+CREATE OR REPLACE FUNCTION save_scan_report(scan_jobid BIGINT, xmlreport XML, scansource TEXT) RETURNS VOID
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = public, pg_temp 
@@ -1266,9 +1311,9 @@ BEGIN
  -- This function saves in the database the XML report from a NMAP scan 
  --
 
-  EXECUTE 'INSERT INTO scan_report (scan_jobid,xmlreport) VALUES ($1,$2)'
-  USING scan_jobid,
-  	lower(xmlreport::text)::xml;
+  EXECUTE 'INSERT INTO scan_report (scan_jobid, xmlreport, scansource) VALUES ($1,$2,$3)'
+  USING scan_jobid, lower(xmlreport::text)::xml, scansource::text;
+--	(select scansource_name from scan_source where scansource_ip = inet_client_addr());
 
   RETURN;
 END;
@@ -1571,6 +1616,47 @@ END;
 $$;
 
 ALTER FUNCTION register_network(CIDR,TEXT) OWNER TO nmap2db_role_rw;
+
+
+
+-- ------------------------------------------------------------
+-- Function: register_scansource()
+-- ------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION register_scansource(CIDR,TEXT,TEXT) RETURNS VOID
+ LANGUAGE plpgsql
+ SECURITY INVOKER
+ SET search_path = public, pg_temp
+ AS $$
+ DECLARE
+  scansource_ip_ ALIAS FOR $1;
+  scansource_name_ ALIAS FOR $2;
+  desc_ ALIAS FOR $3;
+
+  v_msg     TEXT;
+  v_detail  TEXT;
+  v_context TEXT;
+ BEGIN
+
+   IF scansource_ip_ IS NULL THEN
+      RAISE EXCEPTION 'IP address value has not been defined';
+   END IF;
+
+   EXECUTE 'INSERT INTO scan_source (scansource_name, scansource_ip, description) VALUES ($1, $2, $3)'
+   USING scansource_name_, scansource_ip_, desc_;
+
+ EXCEPTION WHEN others THEN
+	GET STACKED DIAGNOSTICS
+	    v_msg     = MESSAGE_TEXT,
+	    v_detail  = PG_EXCEPTION_DETAIL,
+	    v_context = PG_EXCEPTION_CONTEXT;
+	RAISE EXCEPTION E'\n----------------------------------------------\nEXCEPTION:\n----------------------------------------------\nMESSAGE: % \nDETAIL : % \nCONTEXT: % \n----------------------------------------------', v_msg, v_detail, v_context;
+
+END;
+$$;
+
+ALTER FUNCTION register_scansource(CIDR,TEXT,TEXT) OWNER TO nmap2db_role_rw;
+
 
 
 -- ------------------------------------------------------------
