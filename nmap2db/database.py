@@ -215,7 +215,7 @@ class nmap2db_db():
                     self.conn.commit()
 
                     colnames = [desc[0] for desc in self.cur.description]
-                    self.print_results(self.cur,colnames,["ScanID","Finished","Duration","IPaddress","Hostname","State"])
+                    self.print_results(self.cur,colnames,["ScanID","Finished","Duration","IPaddress","Hostname","State", "Scansource"])
 
                 except psycopg2.Error as e:
                     raise e

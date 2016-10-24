@@ -1747,7 +1747,8 @@ SELECT a.report_id AS "ReportID",
        b.elapsed_time AS "Duration",
        a.hostaddr AS "IPaddress",
        array_to_string(a.hostname,' ') AS "Hostname",
-       a.state AS "State"
+       a.state AS "State",
+       a.scansource AS "Scansource"
 FROM host_info a
 JOIN scan_report b ON a.report_id = b.report_id
 JOIN scan_job c ON b.scan_jobid = c.id;
@@ -1770,7 +1771,8 @@ SELECT a.report_id AS "ReportID",
        array_to_string(a.osclass_osgen[1:2],',','*') AS "OSgen",
        array_to_string(a.osmatch_name[1:2],',','*') AS "OSname",
        a.state AS "State",
-       a.state_reason AS "State reason"
+       a.state_reason AS "State reason",
+       a.scansource AS "Scansource"
 FROM host_info a
 JOIN scan_job b ON a.scan_jobid = b.id
 JOIN network c ON c.network_addr >>= a.hostaddr;
