@@ -1742,5 +1742,15 @@ ORDER BY port_id,port_protocol,hostaddr;
 ALTER VIEW show_ports OWNER TO nmap2db_role_rw;
 
 
+CREATE OR REPLACE VIEW show_hosts AS
+SELECT max(registered) AS "Last registration",
+       min(registered) AS "First registration",
+       hostaddr AS "IP-address",
+       hostname AS "Hostname"
+FROM host_info
+GROUP BY hostaddr, hostname
+ORDER BY hostaddr;
+
+ALTER VIEW show_hosts OWNER TO nmap2db_role_rw;
 
 COMMIT;

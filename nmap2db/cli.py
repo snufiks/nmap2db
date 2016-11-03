@@ -956,6 +956,43 @@ class nmap2db_cli(cmd.Cmd):
 
 
     # ############################################
+    # Method do_show_network_definitions
+    # ############################################
+
+    def do_show_hosts(self,args):
+        """
+        DESCRIPTION:
+        This command shows all host registered without a hostname.
+        
+        COMMAND:
+        show_hosts
+        """
+        
+        #
+        # If a parameter has more than one token, it has to be
+        # defined between doble quotes
+        #
+        
+        try: 
+            arg_list = shlex.split(args)
+        
+        except ValueError as e:
+            print "\n[ERROR]: ",e,"\n"
+            return False
+        
+        if len(arg_list) == 0:
+            try:
+                self.db.show_hosts()
+
+            except Exception as e:
+                print "\n[ERROR]: ",e
+                
+        else:
+            print "\n[ERROR] - This command does not accept parameters.\n          Type help or \? to list commands\n"
+
+
+        
+    # ############################################
     # Method preloop
     # ############################################
 

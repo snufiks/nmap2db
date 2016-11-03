@@ -684,3 +684,32 @@ class nmap2db_db():
                     columns.append(str(records[index]))
 
                 print ','.join(columns)
+
+
+
+    # ############################################
+    # Method 
+    # ############################################
+
+    def show_hosts(self):
+        """A function to get a list with the scans defined in the system"""
+
+        try:
+            self.pg_connect()
+
+            if self.cur:
+                try:
+                    self.cur.execute('SELECT "IP-address","Hostname","Last registration", "First registration" FROM show_hosts')
+                    self.conn.commit()
+
+                    colnames = [desc[0] for desc in self.cur.description]
+                    self.print_results(self.cur,colnames,["IP-address","Hostname","Last registration", "First registration"])
+
+                except psycopg2.Error as e:
+                    raise e
+                
+            self.pg_close()
+            
+        except psycopg2.Error as e:
+            raise e
+                
