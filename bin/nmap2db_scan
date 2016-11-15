@@ -29,14 +29,14 @@ import signal
 import argparse
 
 from nmap2db.logs import *
-from nmap2db.database import * 
+from nmap2db.database import *
 from nmap2db.config import *
 
 
 # ############################################
 # Function handler
 # ############################################
-    
+
 def stop_signal_handler(signum, frame):
     logs.logger.info('**** pgbackman_dump stopped. ****')
     sys.exit(0)
@@ -45,32 +45,34 @@ def stop_signal_handler(signum, frame):
 ###########################################
 # Function
 # ############################################
-  
+
 def check_database_connection(db):
     '''Check if we can connect to the database server and the pgbackman database'''
 
     try:
         db.pg_connect()
         return True
-    except Exception as e:    
+    except Exception as e:
         return False
-        
+
 
 # ############################################
-# Function 
+# Function
 # ############################################
-    
+
 def main():
     '''Main function'''
-    
+
     conf = configuration()
     dsn = conf.dsn
+
+    nmap_command = "UNSET"
 
     logs.logger.debug('DSN: host=%s hostaddr=%s port=%s database=%s user=%s ',conf.dbhost,conf.dbhostaddr,conf.dbport,conf.dbname,conf.dbuser)
     logs.logger.debug('pg_connect retry interval: %s',conf.pg_connect_retry_interval)
 
     db = nmap2db_db(dsn,logs,'nmap2db_dump')
-    
+
     #
     # Main loop waiting for notifications
     #
@@ -81,34 +83,56 @@ def main():
             scan_job_id = db.get_next_scan_job()
 
             if scan_job_id != None:
-                
-                scan_job_args = db.get_scan_job_args(scan_job_id)
+                logs.logger.info("scan_job_id: %d", scan_job_id)
                 scan_job_network = db.get_scan_job_network(scan_job_id)
+                logs.logger.info("scan_job_network: %s", scan_job_network)
 
-                for host in db.expand_network(scan_job_network):
+                scan_job_command = db.get_scan_job_command(scan_job_id)
+                logs.logger.info("scan_job_command: %s", scan_job_command)
 
-                    nmap_command = 'nmap ' + scan_job_args + ' ' + host[0]
-                    
+                scan_job_parsemethod = db.get_scan_job_parsemethod(scan_job_id)
+                logs.logger.info("scan_job_parsemethod: %s", scan_job_parsemethod)
+
+                scan_job_args = db.get_scan_job_args(scan_job_id)
+                logs.logger.info("scan_job_args: %s", scan_job_args)
+
+                scan_job_scope = db.get_scan_job_scope(scan_job_id)
+                logs.logger.info("scan_job_scope: %s", scan_job_scope)
+
+                hosts = False
+                ports = False
+                if scan_job_scope == "full":
+                    hosts = db.expand_network(scan_job_network)
+
+                logs.logger.info("Hosts: %s", (hosts))
+
+                for host in hosts:
+                    nmap_command = scan_job_command + ' ' + scan_job_args + ' ' + host[0]
+                    logs.logger.info('nmap_command: %s',nmap_command)
                     proc = subprocess.Popen(nmap_command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                    # logs.logger.error('nmap_command: 1 %s',nmap_command)
                     proc.wait
-                    
+                    # logs.logger.error('nmap_command: 2 %s',nmap_command)
                     output, error = proc.communicate()
-
+                    #logs.logger.error('nmap_command: 3 %s',nmap_command)
                     if proc.returncode == 0:
-                        db.save_scan_report(scan_job_id,output)
-                        logs.logger.debug('Scan jobID: %s for host: %s has saved the XML report in the database',scan_job_id,host[0])
+                        #logs.logger.error('nmap_command: 4A %s',nmap_command)
+                        db.save_scan_report(scan_job_id, output, scan_job_parsemethod)
+                        logs.logger.debug('Scan jobID: %s for host: %s has saved the %s report in the database',scan_job_id,host[0], scan_job_parsemethod)
+                        #logs.logger.error('nmap_command: 4B %s',nmap_command)
                     else:
+                        #logs.logger.error('nmap_command: 4C %s',nmap_command)
                         logs.logger.error('Scan JobID: %s exit with an error: %s',scan_job_id,error)
 
         except psycopg2.OperationalError as e:
 
             logs.logger.critical('Operational error')
-            
+
             check_db = check_database_connection(db)
-            
+
             while not check_db:
                 logs.logger.critical('We have lost the connection to the database. Waiting %s seconds before trying again',conf.pg_connect_retry_interval)
-                
+
                 time.sleep(conf.pg_connect_retry_interval)
                 check_db = check_database_connection(db)
 
@@ -118,7 +142,7 @@ def main():
     db.pg_close()
 
 # ############################################
-# 
+#
 # ############################################
 
 if __name__ == '__main__':
