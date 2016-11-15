@@ -422,18 +422,12 @@ class nmap2db_db():
                         os_sql = os_sql + ') '
                     else:
                         os_sql = ''
-                        
-                    self.cur.execute('SELECT DISTINCT ON ("IPaddress") ' +
-                                     '"Registered",' + 
-                                     '"IPaddress",' +
-                                     '"Hostname",' +
-                                     '"OSname" ' + 
-                                     'FROM show_host_details ' +
-                                     'WHERE "Registered" >= \'' + str(from_timestamp) + '\' AND "Registered" <=  \'' + str(to_timestamp) + '\' ' +
-                                     network_sql +
-                                     os_sql +
-                                     'ORDER BY "IPaddress"')
 
+
+                    fullstmt = 'SELECT DISTINCT ON ("IPaddress") "Registered", "IPaddress", "Hostname",' + '"OSname" ' +  'FROM show_host_details ' + 'WHERE "Registered" >= \'' + str(from_timestamp) + '\' AND "Registered" <=  \'' + str(to_timestamp) + '\' ' + network_sql + os_sql + 'ORDER BY "IPaddress"'
+                    self.logs.logger.info(fullstmt)
+
+                    self.cur.execute(fullstmt)
                     self.conn.commit()
 
                     colnames = [desc[0] for desc in self.cur.description]
@@ -574,23 +568,49 @@ class nmap2db_db():
             raise e
 
     # ############################################
-    # Method 
+    # Method get_scan_job_command
     # ############################################
 
-    def get_scan_job_network(self,scan_job_id):
-        """A method to get the network for a scan_job"""
+    def get_scan_job_command(self,scan_job_id):
+        """A method to get the scan executable for a scan_job"""
 
         try:
             self.pg_connect()
 
             if self.cur:
                 try:
-                    self.cur.execute('SELECT get_scan_job_network_addr(%s)',(scan_job_id,))
-                    self.conn.commit()                        
-                
-                    scan_job_network = self.cur.fetchone()[0]
-                    return scan_job_network
-                    
+                    self.cur.execute('SELECT get_scan_job_command(%s)',(scan_job_id,))
+                    self.conn.commit()
+
+                    scan_job_command = self.cur.fetchone()[0]
+                    return scan_job_command
+
+                except psycopg2.Error as  e:
+                    raise e
+
+            self.pg_close()
+
+        except psycopg2.Error as e:
+            raise e
+
+    # ############################################
+    # Method get_scan_job_parsemethod
+    # ############################################
+
+    def get_scan_job_parsemethod(self,scan_job_id):
+        """A method to get the parse method for a scan_job"""
+
+        try:
+            self.pg_connect()
+
+            if self.cur:
+                try:
+                    self.cur.execute('SELECT get_scan_job_parsemethod(%s)',(scan_job_id,))
+                    self.conn.commit()
+
+                    scan_job_parsemethod = self.cur.fetchone()[0]
+                    return scan_job_parsemethod
+
                 except psycopg2.Error as  e:
                     raise e
 
@@ -603,15 +623,84 @@ class nmap2db_db():
     # Method 
     # ############################################
 
-    def save_scan_report(self,scan_job_id,xml_report):
-        """A method to save a scan report"""
+    def get_scan_job_network(self,scan_job_id):
+        """A method to get the network for a scan_job"""
 
         try:
             self.pg_connect()
 
             if self.cur:
                 try:
-                    self.cur.execute('SELECT save_scan_report(%s,%s)',(scan_job_id,xml_report))
+                    self.cur.execute('SELECT get_scan_job_network_addr(%s)',(scan_job_id,))
+                    self.conn.commit()
+
+                    scan_job_network = self.cur.fetchone()[0]
+                    return scan_job_network
+
+                except psycopg2.Error as  e:
+                    raise e
+
+            self.pg_close()
+
+        except psycopg2.Error as e:
+            raise e
+
+    # ############################################
+    # Method get_scan_job_scope
+    # ############################################
+
+    def get_scan_job_scope(self,scan_job_id):
+        """A method to get the scan scope for a scan_job"""
+
+        try:
+            self.pg_connect()
+
+            if self.cur:
+                try:
+                    query = "SELECT scan_scope FROM scan_job WHERE id=%s"
+                    self.logs.logger.info("SELECT scan_scope FROM scan_job WHERE id=%d",scan_job_id)
+                    self.cur.execute(query, [scan_job_id])
+                    self.conn.commit()
+
+                    scan_job_scope = self.cur.fetchone()[0]
+                    return scan_job_scope
+
+                except psycopg2.Error as  e:
+                    raise e
+
+            self.pg_close()
+
+        except psycopg2.Error as e:
+            raise e
+
+    # ############################################
+    # Method 
+    # ############################################
+
+    def save_scan_report(self,scan_job_id, report, scan_type):
+        """A method to save a scan report"""
+
+        # self.logs.logger.info("save_scan_report PRE _%s_", scan_type)
+        sqlstmt = False
+        if scan_type == 'nmap_default':
+            # self.logs.logger.info("save_scan_report (nmap_default) _%s_", scan_type)
+            sqlstmt = 'SELECT save_scan_report_xml(%s,%s)'
+        elif scan_type == 'testssl':
+            # self.logs.logger.info("save_scan_report (testssl) _%s_", scan_type)
+            sqlstmt = 'SELECT save_ssl_report_json(%s,%s)'
+        else:
+            self.logs.logger.info("save_scan_report ELSE _%s_", scan_type)
+
+        # self.logs.logger.info("save_scan_report (report) _%s_", report)
+        # self.logs.logger.info("save_scan_report (scan_job_id) _%s_", scan_job_id)
+
+        try:
+            self.pg_connect()
+
+            if self.cur and sqlstmt:
+                try:
+                    # self.logs.logger.info("save_scan_report (sqlstmt) _%s_", sqlstmt)
+                    self.cur.execute(sqlstmt, (scan_job_id, report))
                     self.conn.commit()                        
                 
                     return True
